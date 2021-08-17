@@ -7,7 +7,8 @@ from firebase_admin import credentials
 from firebase_admin import firestore
 import time
 from firebase_admin import db
-
+import random
+import string
 # server.py : 연결해 1 보낼 수 있음.
 import socket
 
@@ -16,7 +17,7 @@ firebase_admin.initialize_app(cred, {
       "projectId": "bike-71038"
 })
 while(1):
-    host = '192.168.219.106'  # 호스트 ip를 적어주세요
+    host = '192.168.219.100'  # 호스트 ip를 적어주세요
     port = 1991  # 포트번호를 임의로 설정해주세요
 
     server_sock = socket.socket(socket.AF_INET)
@@ -28,54 +29,59 @@ while(1):
 
     print('Connected by', addr)
 
-    FrameStared = ["", "", "", ""]
-    Stars = ["", "", "", ""]
-    for i in range(0, 3):
+
+    productStared = ["", "", "", "", "", ""]
+    Stars = ["", "", "", "", "", ""]
+    productTypes = client_sock.recv(1024)
+    productType = productTypes.decode('utf-8')[2:]
+    print(productType)
+    for i in range(0, 5):
         client_sock.send(str("next").encode("utf-8"))
         data = client_sock.recv(1024)
-        print(data.decode("utf-8"), len(data))
-        FrameStared[i] = data.decode("utf-8")
-        FrameStared[i] = FrameStared[i][2:]
+        productStared[i] = data.decode("utf-8")
+        productStared[i] = productStared[i][2:]
         data = "";
         client_sock.send(str("next").encode("utf-8"))
         data = client_sock.recv(1024)
-        print(data.decode("utf-8"), len(data))
         Stars[i] = data.decode("utf-8")
         Stars[i] = Stars[i][2:]
-        print(FrameStared[i] + " " + Stars[i])
-
-
-
+        print(productStared[i] + " " + Stars[i])
         data = "";
 
-
+    print("wwoow")
     db = firestore.client()
-    users_ref = db.collection(u'frame')
-    query_ref = users_ref.where(u'name', u'==', u'치넬리 벨트릭스')
+
+    users_ref = db.collection(productType)
+    #query_ref = users_ref.where(u'name', u'==', u'치넬리 벨트릭스')
     docs = users_ref.stream()
-    frameNames = []
+    productNames = []
 
     for doc in docs:
-        frameNames.append(doc.to_dict()['name'])
+        productNames.append(doc.to_dict()['name'])
 
-    f = open("movie_rating.csv", 'r', encoding='utf-8')
+    f = open(productType+"_rating.csv", 'r', encoding='utf-8')
     wr = csv.reader(f)
     lines = []
     for line in wr:
         if line[0] != 'Tester':
             lines.append(line)
-    f = open('movie_rating.csv', 'w', newline='', encoding='utf-8')
+    f = open(productType+"_rating.csv", 'w', newline='', encoding='utf-8')
     wr = csv.writer(f)
     wr.writerows(lines)
     f.close()
 
-    f = open("movie_rating.csv", 'a', newline='', encoding='utf-8')
+    f = open(productType+"_rating.csv", 'a', newline='', encoding='utf-8')
     wr = csv.writer(f)
-    for i in range(0, FrameStared.__len__() - 1):
-        wr.writerow(['Tester', FrameStared[i], Stars[i]])
+    for i in range(0, productStared.__len__() - 1):
+        wr.writerow(['Tester', productStared[i], Stars[i]])
+    result = ""
+    for i in range(5) :
+        result += random.choice(string.ascii_letters)
+    for i in range(0, productStared.__len__() - 1):
+        wr.writerow(['Tester'+result, productStared[i], Stars[i]])
     f.close()
 
-    rating = pd.read_csv("movie_rating.csv", encoding='utf-8')
+    rating = pd.read_csv(productType+"_rating.csv", encoding='utf-8')
     rating.head()  # critic(user)   title(item)   rating
     rating['critic'].value_counts()
     rating['title'].value_counts()
@@ -94,22 +100,29 @@ while(1):
     model = SVD(n_factors=100, n_epochs=20, random_state=123)
     model.fit(train)  # model 생성
     user_id = 'Tester'  # 추천대상자
-    item_ids = frameNames  # 추천 대상 프레임
+    item_ids = productNames  # 추천 대상 프레임
     actual_rating = 0  # 실제 평점
 
     predictValues = []
     for item_id in item_ids:
         predictValues.append(model.predict(user_id, item_id, actual_rating))
-    print(predictValues.sort(key=lambda x: -x[3]))
-    print(predictValues)
+    modifiedValues = []
+    for i in predictValues:
+        for j in range(0,5):
+            if( productStared[j] == i[1]):
+                print(i[3])
+                print(float(Stars[j]))
+                modifiedValues.append((productStared[j],(i[3] + float(Stars[j])) / 2.0))
+
+    for j in range(0, 5):
+        print(modifiedValues[j][0])
+    print(modifiedValues.sort(key=lambda x: -x[1]))
+    print(modifiedValues)
 
 
     # print(data2.encode())
-    client_sock.send(str(predictValues[0][1]).encode("utf-8"))
+    client_sock.send(str(modifiedValues[0][0]).encode("utf-8"))
     time.sleep(0.1)
-    client_sock.send(str(predictValues[1][1]).encode("utf-8"))
-    time.sleep(0.1)
-    client_sock.send(str(predictValues[2][1]).encode("utf-8"))
 
     client_sock.close()
     server_sock.close()
