@@ -55,7 +55,7 @@ while(1):
     #query_ref = users_ref.where(u'name', u'==', u'치넬리 벨트릭스')
     docs = users_ref.stream()
     productNames = []
-
+    print("sibal")
     for doc in docs:
         productNames.append(doc.to_dict()['name'])
 
